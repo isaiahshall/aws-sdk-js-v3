@@ -1,57 +1,61 @@
-import AWS from 'aws-sdk'
+import AWS from "aws-sdk";
 
 // Fetch the S3 bucket name from the environment variable
-const S3_BUCKET_NAME = process.env.ARTIFACTS_BUCKET
+const S3_BUCKET_NAME = process.env.ARTIFACTS_BUCKET;
 
 export const handler = async (event) => {
   try {
-    const { id: artifactId, teamId, team, slug } = event.pathParameters
-    let teamIdentifier = teamId ?? team ?? slug
+    const artifactId = event.pathParameters.hash;
+    const teamIdentifier =
+      event.queryStringParameters.slug ?? event.queryStringParameters.team ?? event.queryStringParameters.teamId;
 
     if (!teamIdentifier) {
-      throw new Error('Path parameters should have required property \'teamId\', \'team\', or \'slug\'')
+      let error = new Error("Path parameters should have required property 'teamId', 'team', or 'slug'");
+      error.name = "BadRequestError";
+      throw error;
     }
 
     // Create an S3 client using the AWS SDK
-    const s3 = new AWS.S3()
+    const s3 = new AWS.S3();
 
     // Fetch the artifact from the S3 bucket
-    const { Body } = await s3.getObject({
-      Bucket: S3_BUCKET_NAME,
-      Key: `${teamIdentifier}/${artifactId}`
-    }).promise()
+    const { Body } = await s3
+      .getObject({
+        Bucket: S3_BUCKET_NAME,
+        Key: `${teamIdentifier}/${artifactId}`,
+      })
+      .promise();
 
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'application/octet-stream'
+        "Content-Type": "application/octet-stream",
       },
-      body: Body.toString('base64'),
-      isBase64Encoded: true
-    }
+      body: Body.toString("base64"),
+      isBase64Encoded: true,
+    };
   } catch (err) {
-    console.error(err)
-    let statusCode = 500
-    let errorMessage = 'Internal server error'
+    console.error(err);
+    let statusCode = 500;
+    let errorMessage = "Internal server error";
 
-    if (err.name === 'UnauthorizedError') {
-      statusCode = 401
-      errorMessage = 'Unauthorized'
-    } else if (err.name === 'ForbiddenError') {
-      statusCode = 403
-      errorMessage = 'Forbidden'
-    } else if (err.name === 'BadRequestError') {
-      statusCode = 400
-      errorMessage = 'Bad request'
+    if (err.name === "UnauthorizedError") {
+      statusCode = 401;
+      errorMessage = "Unauthorized";
+    } else if (err.name === "ForbiddenError") {
+      statusCode = 403;
+      errorMessage = "Forbidden";
+    } else if (err.name === "BadRequestError") {
+      statusCode = 400;
+      errorMessage = "Bad request";
     }
 
     return {
-        statusCode,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ error: errorMessage }),
-      };
-
+      statusCode,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ error: errorMessage }),
+    };
   }
-}
+};
